@@ -1,0 +1,63 @@
+{
+  "name": "extraccion_operaciones",
+  "strict": true,
+  "schema": {
+    "type": "object",
+    "additionalProperties": false,
+    "required": ["operaciones", "preguntas", "confianza"],
+    "properties": {
+      "operaciones": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "tipo", "fecha", "contraparte_texto", "origen_texto", "destino_texto",
+            "transportista_texto", "folio_externo", "referencia_operacion_anterior",
+            "lineas", "monto", "categoria_gasto", "nota"
+          ],
+          "properties": {
+            "tipo": {
+              "type": "string",
+              "enum": ["compra", "venta", "devolucion_cajas", "pago", "gasto"]
+            },
+            "fecha": { "type": ["string", "null"] },
+            "contraparte_texto": { "type": ["string", "null"] },
+            "origen_texto": { "type": ["string", "null"] },
+            "destino_texto": { "type": ["string", "null"] },
+            "transportista_texto": { "type": ["string", "null"] },
+            "folio_externo": { "type": ["string", "null"] },
+            "referencia_operacion_anterior": { "type": "boolean" },
+            "lineas": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "producto_texto", "tipo_caja_texto", "cajas",
+                  "kg_por_caja", "precio_unitario", "unidad_precio"
+                ],
+                "properties": {
+                  "producto_texto": { "type": ["string", "null"] },
+                  "tipo_caja_texto": { "type": ["string", "null"] },
+                  "cajas": { "type": ["integer", "null"] },
+                  "kg_por_caja": { "type": ["string", "null"] },
+                  "precio_unitario": { "type": ["string", "null"] },
+                  "unidad_precio": { "type": ["string", "null"], "enum": ["caja", "kg", null] }
+                }
+              }
+            },
+            "monto": { "type": ["string", "null"] },
+            "categoria_gasto": {
+              "type": ["string", "null"],
+              "enum": ["flete", "hielo", "maniobras", "comision", "peaje", "empaque", "otro", null]
+            },
+            "nota": { "type": ["string", "null"] }
+          }
+        }
+      },
+      "preguntas": { "type": "array", "items": { "type": "string" } },
+      "confianza": { "type": "number" }
+    }
+  }
+}

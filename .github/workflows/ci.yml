@@ -1,0 +1,64 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  pull_request:
+
+jobs:
+  calidad:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: pip install -e ".[dev]"
+      - run: ruff format --check .
+      - run: ruff check .
+      - run: mypy backend
+      - run: pytest --cov=backend --cov-report=term-missing
+
+  publicar:
+    needs: calidad
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    permissions: {contents: read, packages: write}
+    strategy:
+      matrix:
+        objetivo: [backend, bot, worker]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: docker/Dockerfile
+          target: ${{ matrix.objetivo }}
+          push: true
+          tags: ghcr.io/${{ github.repository_owner }}/fruitflow-${{ matrix.objetivo }}:${{ github.ref_name }}
+
+  desplegar:
+    needs: publicar
+    runs-on: ubuntu-latest
+    steps:
+      - name: Desplegar por SSH
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          script: |
+            cd /opt/fruitflow
+            export TAG=${{ github.ref_name }}
+            docker compose -f docker/docker-compose.prod.yml pull
+            docker compose -f docker/docker-compose.prod.yml up -d
+            docker compose -f docker/docker-compose.prod.yml exec -T backend alembic upgrade head
+            sleep 10
+            curl -fsS https://${{ secrets.VPS_DOMAIN }}/health || exit 1

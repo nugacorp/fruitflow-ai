@@ -1,0 +1,249 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>FruitFlow — Panel</title>
+<style>
+  :root {
+    color-scheme: light;
+    --page:           #f9f9f7;
+    --surface:        #fcfcfb;
+    --ink:            #0b0b0b;
+    --ink-2:          #52514e;
+    --ink-muted:      #898781;
+    --hairline:       #e1e0d9;
+    --border:         rgba(11,11,11,0.10);
+    --bueno:          #006300;
+    --critico:        #d03b3b;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      color-scheme: dark;
+      --page:           #0d0d0d;
+      --surface:        #1a1a19;
+      --ink:            #ffffff;
+      --ink-2:          #c3c2b7;
+      --ink-muted:      #898781;
+      --hairline:       #2c2c2a;
+      --border:         rgba(255,255,255,0.10);
+      --bueno:          #0ca30c;
+      --critico:        #d03b3b;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--page);
+    color: var(--ink);
+    font: 14px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif;
+  }
+  header {
+    display: flex; align-items: baseline; gap: 16px; flex-wrap: wrap;
+    padding: 20px 24px 0;
+  }
+  header h1 { font-size: 18px; font-weight: 600; margin: 0; }
+  header .rango { color: var(--ink-muted); font-size: 13px; }
+  .filtros {
+    display: flex; gap: 4px; padding: 12px 24px 0; flex-wrap: wrap;
+  }
+  .filtros button {
+    border: 1px solid transparent; background: none; color: var(--ink-2);
+    font: inherit; padding: 6px 12px; border-radius: 8px; cursor: pointer;
+  }
+  .filtros button:hover { background: var(--surface); }
+  .filtros button[aria-pressed="true"] {
+    background: var(--surface); border-color: var(--border);
+    color: var(--ink); font-weight: 600;
+  }
+  main { padding: 16px 24px 32px; display: grid; gap: 16px; }
+  .tiles {
+    display: grid; gap: 12px;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  }
+  .tile {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 12px; padding: 14px 16px;
+  }
+  .tile .etiqueta { color: var(--ink-2); font-size: 13px; }
+  .tile .valor { font-size: 24px; font-weight: 600; margin-top: 2px; }
+  .tile .detalle { color: var(--ink-muted); font-size: 12px; margin-top: 2px; }
+  .tile.heroe .valor { font-size: 48px; line-height: 1.1; }
+  .valor.positivo { color: var(--bueno); }
+  .valor.negativo { color: var(--critico); }
+  .rejilla { display: grid; gap: 16px; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); }
+  section.tarjeta {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 12px; padding: 16px;
+  }
+  section.tarjeta h2 { font-size: 14px; font-weight: 600; margin: 0 0 10px; }
+  table { width: 100%; border-collapse: collapse; }
+  th {
+    text-align: left; color: var(--ink-muted); font-weight: 500; font-size: 12px;
+    padding: 4px 8px 6px 0; border-bottom: 1px solid var(--hairline);
+  }
+  td {
+    padding: 7px 8px 7px 0; border-bottom: 1px solid var(--hairline);
+    color: var(--ink); vertical-align: top;
+  }
+  tr:last-child td { border-bottom: none; }
+  td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; padding-right: 0; }
+  td .sub { color: var(--ink-muted); font-size: 12px; }
+  .vacio { color: var(--ink-muted); padding: 8px 0; }
+  .error {
+    background: var(--surface); border: 1px solid var(--critico);
+    border-radius: 12px; padding: 12px 16px; color: var(--critico);
+  }
+</style>
+</head>
+<body>
+<header>
+  <h1>FruitFlow — Panel</h1>
+  <span class="rango" id="rango"></span>
+</header>
+
+<div class="filtros" role="group" aria-label="Periodo">
+  <button data-dias="0">Hoy</button>
+  <button data-dias="6" aria-pressed="true">7 días</button>
+  <button data-dias="29">30 días</button>
+  <button data-dias="mes">Mes actual</button>
+</div>
+
+<main>
+  <div id="aviso"></div>
+  <div class="tiles" id="tiles"></div>
+  <div class="rejilla">
+    <section class="tarjeta">
+      <h2>Cajas pendientes por contraparte</h2>
+      <div id="cajas"></div>
+    </section>
+    <section class="tarjeta">
+      <h2>Cuentas por cobrar</h2>
+      <div id="cxc"></div>
+    </section>
+    <section class="tarjeta">
+      <h2>Cuentas por pagar</h2>
+      <div id="cxp"></div>
+    </section>
+    <section class="tarjeta">
+      <h2>Borradores sin confirmar</h2>
+      <div id="borradores"></div>
+    </section>
+  </div>
+</main>
+
+<script>
+"use strict";
+
+const pesos = new Intl.NumberFormat("es-MX", { style: "currency", currency: "MXN" });
+const enteros = new Intl.NumberFormat("es-MX");
+
+function fechaISO(d) { return d.toISOString().slice(0, 10); }
+
+function rangoDe(valor) {
+  const hoy = new Date();
+  if (valor === "mes") {
+    return { desde: fechaISO(new Date(hoy.getFullYear(), hoy.getMonth(), 1)), hasta: fechaISO(hoy) };
+  }
+  const desde = new Date(hoy);
+  desde.setDate(hoy.getDate() - Number(valor));
+  return { desde: fechaISO(desde), hasta: fechaISO(hoy) };
+}
+
+function tile(etiqueta, valor, detalle, clase) {
+  return `<div class="tile${clase && clase.includes("heroe") ? " heroe" : ""}">
+    <div class="etiqueta">${etiqueta}</div>
+    <div class="valor${clase ? " " + clase.replace("heroe", "").trim() : ""}">${valor}</div>
+    ${detalle ? `<div class="detalle">${detalle}</div>` : ""}
+  </div>`;
+}
+
+function tabla(columnas, filas) {
+  if (!filas.length) return `<div class="vacio">Nada pendiente. Todo cuadrado.</div>`;
+  const cab = columnas.map(c => `<th${c.num ? ' class="num"' : ""}>${c.titulo}</th>`).join("");
+  const cuerpo = filas.map(f =>
+    `<tr>${columnas.map(c => `<td${c.num ? ' class="num"' : ""}>${f[c.clave]}</td>`).join("")}</tr>`
+  ).join("");
+  return `<table><thead><tr>${cab}</tr></thead><tbody>${cuerpo}</tbody></table>`;
+}
+
+function escapar(texto) {
+  const div = document.createElement("div");
+  div.textContent = String(texto);
+  return div.innerHTML;
+}
+
+async function cargar(rango) {
+  const respuesta = await fetch(`panel/datos?desde=${rango.desde}&hasta=${rango.hasta}`, {
+    headers: { "Accept": "application/json" },
+  });
+  if (!respuesta.ok) throw new Error(`HTTP ${respuesta.status}`);
+  return respuesta.json();
+}
+
+function pintar(datos) {
+  document.getElementById("rango").textContent = `${datos.desde} → ${datos.hasta}`;
+
+  const r = datos.resumen;
+  const utilidad = Number(r.utilidad_neta);
+  document.getElementById("tiles").innerHTML =
+    tile("Utilidad neta", pesos.format(utilidad),
+         `margen ${r.margen}%`, "heroe " + (utilidad < 0 ? "negativo" : utilidad > 0 ? "positivo" : "")) +
+    tile("Ventas", pesos.format(Number(r.ventas_total)), `${enteros.format(r.ventas_cajas)} cajas`) +
+    tile("Compras", pesos.format(Number(r.compras_total)), `${enteros.format(r.compras_cajas)} cajas`) +
+    tile("Gastos", pesos.format(Number(r.gastos_total)), "");
+
+  document.getElementById("cajas").innerHTML = tabla(
+    [{ titulo: "Contraparte", clave: "nombre" }, { titulo: "Cajas", clave: "saldo", num: true }],
+    datos.cajas.map(c => ({
+      nombre: `${escapar(c.nombre)}<div class="sub">${
+        Object.entries(c.por_tipo).map(([t, s]) => `${escapar(t)}: ${enteros.format(s)}`).join(" · ")
+      }</div>`,
+      saldo: `${enteros.format(Math.abs(c.total))} <span class="sub">${c.total > 0 ? "te debe" : "le debes"}</span>`,
+    }))
+  );
+
+  const dinero = filas => filas.map(f => ({
+    nombre: escapar(f.nombre),
+    pendiente: pesos.format(Number(f.pendiente)),
+  }));
+  const columnasDinero = [
+    { titulo: "Contraparte", clave: "nombre" },
+    { titulo: "Pendiente", clave: "pendiente", num: true },
+  ];
+  document.getElementById("cxc").innerHTML = tabla(columnasDinero, dinero(datos.cxc));
+  document.getElementById("cxp").innerHTML = tabla(columnasDinero, dinero(datos.cxp));
+
+  document.getElementById("borradores").innerHTML = tabla(
+    [
+      { titulo: "Operación", clave: "intencion" },
+      { titulo: "Falta", clave: "faltantes" },
+      { titulo: "Expira", clave: "expira", num: true },
+    ],
+    datos.borradores.map(b => ({
+      intencion: escapar(b.intencion),
+      faltantes: b.faltantes.length ? escapar(b.faltantes.join(", ")) : "—",
+      expira: escapar(b.expira_en.slice(0, 16).replace("T", " ")),
+    }))
+  );
+}
+
+async function refrescar(boton) {
+  document.querySelectorAll(".filtros button").forEach(b => b.setAttribute("aria-pressed", "false"));
+  boton.setAttribute("aria-pressed", "true");
+  const aviso = document.getElementById("aviso");
+  try {
+    pintar(await cargar(rangoDe(boton.dataset.dias)));
+    aviso.innerHTML = "";
+  } catch (e) {
+    aviso.innerHTML = `<div class="error">No pude cargar los datos (${escapar(e.message)}). ¿La persistencia está configurada?</div>`;
+  }
+}
+
+document.querySelectorAll(".filtros button").forEach(b =>
+  b.addEventListener("click", () => refrescar(b))
+);
+refrescar(document.querySelector('.filtros button[aria-pressed="true"]'));
+</script>
+</body>
+</html>
