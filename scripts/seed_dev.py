@@ -53,7 +53,9 @@ async def sembrar() -> None:
     empresa_id = uuid.UUID(settings.empresa_id)
 
     async with fabrica_de_sesiones()() as sesion:
-        sesion.add(Empresa(id=empresa_id, nombre="FruitFlow Demo"))
+        # Idempotente frente al arranque, que ya crea la empresa por defecto.
+        if await sesion.get(Empresa, empresa_id) is None:
+            sesion.add(Empresa(id=empresa_id, nombre="FruitFlow Demo"))
 
         telegram_ids = sorted(settings.usuarios_permitidos) or [123456789]
         sesion.add(

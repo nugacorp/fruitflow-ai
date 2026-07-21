@@ -142,6 +142,9 @@ class RepoComprasSQL(_RepoBase):
                 ],
             )
         )
+        # Los lotes referencian compra_lineas por FK sin relationship(); el
+        # flush garantiza que las lineas existan antes de insertar lotes.
+        await self.sesion.flush()
         return folio
 
     async def actualizar_estado(self, compra_id: uuid.UUID, estado: str) -> None:
